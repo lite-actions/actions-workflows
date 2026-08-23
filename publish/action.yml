@@ -94,7 +94,18 @@ runs:
         # The generated notes file is the GitHub Release body.
         gh release create "${tag}" --title "${VERSION}" --notes-file "${NOTES_FILE}"
 
-    - name: Nothing to release
+    # A dispatch that does nothing should say so where it can be seen, not in a
+    # step log nobody opens. The notice annotation surfaces on the run itself and
+    # the summary on the run page.
+    - name: No release changes
       if: steps.notes.outputs.changed != 'true'
       shell: bash
-      run: echo "No BREAKING / feat / fix commits since the last release; nothing to do."
+      run: |
+        set -euo pipefail
+        echo "::notice title=NO RELEASE CHANGES::No BREAKING / feat / fix commits since the last release; nothing was tagged or released."
+        {
+          echo "## NO RELEASE CHANGES"
+          echo
+          echo "No BREAKING / feat / fix commits since the last release."
+          echo "Nothing was tagged, no GitHub Release was created, and no listing was updated."
+        } >> "${GITHUB_STEP_SUMMARY}"
