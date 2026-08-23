@@ -140,6 +140,13 @@ jobs:
           # Rehearsal: send the notification for one PR and merge nothing. The
           # merge path only runs when a real stall happens, so without this the
           # diagnostics and Slack path would ship untested.
+          #
+          # It posts to the real channel deliberately. That is the whole point:
+          # it is the only way to confirm delivery still works after a webhook
+          # rotation, a channel change or an app permission change. Route it to
+          # the log instead and there is no test route at all - the first sign
+          # of a broken webhook would be a stall that alerted nobody, which is
+          # the failure this workflow exists to prevent.
           if [ -n "${REHEARSE_PR:-}" ]; then
             echo "Rehearsal for ${REHEARSE_PR} - nothing will be merged."
             notify "${REHEARSE_PR%%#*}" "${REHEARSE_PR##*#}" \
