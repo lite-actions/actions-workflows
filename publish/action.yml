@@ -71,8 +71,35 @@ runs:
         to: ${{ inputs.to }}
         version: ${{ inputs.version }}
 
+    # Decide from the notes themselves whether there is anything to release.
+    #
+    # Matches the section headings, not the "_No user-facing changes since ..._"
+    # sentence, because the headings are a tested contract - release-notes'
+    # tests/test.sh asserts all three - while the sentence is prose that could be
+    # reworded. It also fails the safe way round: anything unrecognised leaves
+    # the headings unmatched and stops the release, rather than releasing
+    # something nobody has read.
+    - name: Check the notes for releasable content
+      id: gate
+      shell: bash
+      env:
+        NOTES_FILE: ${{ steps.notes.outputs.file }}
+      run: |
+        set -euo pipefail
+        if [ ! -f "${NOTES_FILE}" ]; then
+          echo "::error::release-notes produced no file at '${NOTES_FILE}'."
+          exit 1
+        fi
+        if grep -qE '^(\*\*⚠ BREAKING CHANGES\*\*|### Features|### Fixes)$' "${NOTES_FILE}"; then
+          echo "release=true" >> "${GITHUB_OUTPUT}"
+          echo "Notes contain releasable sections; continuing."
+        else
+          echo "release=false" >> "${GITHUB_OUTPUT}"
+          echo "Notes contain no BREAKING / Features / Fixes section."
+        fi
+
     - name: Tag, move major tag, and publish release
-      if: steps.notes.outputs.changed == 'true'
+      if: steps.gate.outputs.release == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -94,7 +121,18 @@ runs:
         # The generated notes file is the GitHub Release body.
         gh release create "${tag}" --title "${VERSION}" --notes-file "${NOTES_FILE}"
 
-    - name: Nothing to release
-      if: steps.notes.outputs.changed != 'true'
+    # A dispatch that does nothing should say so where it can be seen, not in a
+    # step log nobody opens. The notice annotation surfaces on the run itself and
+    # the summary on the run page.
+    - name: No release changes
+      if: steps.gate.outputs.release != 'true'
       shell: bash
-      run: echo "No BREAKING / feat / fix commits since the last release; nothing to do."
+      run: |
+        set -euo pipefail
+        echo "::notice title=NO RELEASE CHANGES::No BREAKING / feat / fix commits since the last release; nothing was tagged or released."
+        {
+          echo "## NO RELEASE CHANGES"
+          echo
+          echo "No BREAKING / feat / fix commits since the last release."
+          echo "Nothing was tagged, no GitHub Release was created, and no listing was updated."
+        } >> "${GITHUB_STEP_SUMMARY}"
