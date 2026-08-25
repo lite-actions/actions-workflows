@@ -1,16 +1,12 @@
 name: Conventional Validation
 
+# Pull requests only. Validation exists to gate a pull request; dispatched by
+# hand there is nothing to gate, and an empty base-ref checks only HEAD - a
+# commit that has already merged, where a failure informs nobody and blocks
+# nothing.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-  workflow_dispatch:
-    inputs:
-      base-ref:
-        description: >-
-          Base ref for the commit range when run manually
-          (e.g. origin/main). Leave empty to check only HEAD.
-        required: false
-        default: ""
 
 jobs:
   validate:
@@ -27,5 +23,3 @@ jobs:
       # pass, and merge. The working tree is what is under review.
       - name: Validate conventional commits & branch
         uses: ./conventional-validation
-        with:
-          base-ref: ${{ github.event.inputs.base-ref }}
