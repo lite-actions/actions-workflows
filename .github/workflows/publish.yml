@@ -1,0 +1,49 @@
+name: Publish
+
+# Manual publish: generate notes from BREAKING/feat/fix commits since the last
+# release, tag vX.Y.Z, move the vN major tag, and cut a GitHub Release. Tags are
+# not branch-protected, so no PR/approval dance is needed.
+#
+# This repository has eight hand-cut tags and no Releases, which is what this
+# exists to stop. Releases are cut here and never through the web UI: the
+# workflow types nothing, so it cannot mistype.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Base ref/commit for the notes (default: last release tag)."
+        required: false
+        default: ""
+      to:
+        description: "Head ref/commit for the notes (default: HEAD)."
+        required: false
+        default: ""
+      version:
+        description: "Explicit version, e.g. 1.2.0 (default: computed from commits)."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: lite-actions/git-checkout@90733d329cd6c632c7597660341002e1a1377c44 # v1.1.0
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # `uses: ./` - see conventional-validation.yml.
+      - name: Tag and publish the release
+        uses: ./publish
+        with:
+          from: ${{ github.event.inputs.from }}
+          to: ${{ github.event.inputs.to }}
+          version: ${{ github.event.inputs.version }}
