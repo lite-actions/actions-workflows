@@ -1,0 +1,46 @@
+name: Changelog
+
+# On merge to main, log the push's commits to CHANGELOG.md and regenerate
+# RELEASE_NOTES.md, then land both via an auto-merged PR (main is protected, so
+# direct pushes are rejected).
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # Stop the changelog PR's own merge from looping.
+      - CHANGELOG.md
+      - RELEASE_NOTES.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog
+  cancel-in-progress: false
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: lite-actions/git-checkout@90733d329cd6c632c7597660341002e1a1377c44 # v1.1.0
+        with:
+          fetch-depth: 0
+          # release-notes resolves "since the last release" from vX.Y.Z tags,
+          # and git-checkout appends --no-tags unless this is set, even at
+          # fetch-depth 0. actions/checkout implied them; this does not.
+          fetch-tags: true
+          # A user PAT so the branch push / PR creation act as a real user and
+          # therefore trigger the required checks (GITHUB_TOKEN would not).
+          # Falls back to github.token before the secret is configured, so the
+          # job checks out and then gracefully skips instead of erroring.
+          token: ${{ secrets.CHANGELOG_BOT_TOKEN || github.token }}
+
+      # `uses: ./` for the same reason as conventional-validation.yml: this is
+      # the repository that defines the changelog action, so it must exercise
+      # the working tree rather than the last release.
+      - name: Changelog and release notes
+        uses: ./changelog
+        with:
+          bot-token: ${{ secrets.CHANGELOG_BOT_TOKEN }}
+          approve-token: ${{ secrets.CHANGELOG_APPROVE_TOKEN }}

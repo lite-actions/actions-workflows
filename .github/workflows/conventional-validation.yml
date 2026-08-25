@@ -1,0 +1,25 @@
+name: Conventional Validation
+
+# Pull requests only. Validation exists to gate a pull request; dispatched by
+# hand there is nothing to gate, and an empty base-ref checks only HEAD - a
+# commit that has already merged, where a failure informs nobody and blocks
+# nothing.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: lite-actions/git-checkout@90733d329cd6c632c7597660341002e1a1377c44 # v1.1.0
+        with:
+          fetch-depth: 0
+
+      # `uses: ./`, not `@v1`. Referencing a released version of this very
+      # repository is the circular dependency ticket 011 was about: a pull
+      # request breaking the validator would be checked by the last release,
+      # pass, and merge. The working tree is what is under review.
+      - name: Validate conventional commits & branch
+        uses: ./conventional-validation

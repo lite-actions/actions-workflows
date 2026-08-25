@@ -1,0 +1,58 @@
+name: Lint
+
+# Two linters, because neither reaches what the other does.
+#
+# actionlint checks .github/workflows - syntax, expressions, deprecated
+# constructs - and runs ShellCheck over their `run:` blocks. It explicitly does
+# not check the steps of a composite action's metadata, and refuses action.yml
+# as an argument. Every line of shell in this repository lives in a
+# */action.yml `run:` block, so actionlint alone would check the wrappers and
+# skip the substance.
+#
+# scripts/lint-composite-shell.sh closes that gap by extracting each composite
+# `run:` block and ShellChecking it. Retire it in favour of actionlint alone
+# if actionlint ever grows composite support.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: lite-actions/git-checkout@90733d329cd6c632c7597660341002e1a1377c44 # v1.1.0
+
+      # Pinned rather than `latest`: this is a required check, and a floating
+      # tool version can start failing a pull request with no commit behind it.
+      # Bounded because a required check that hangs blocks the PR rather than
+      # failing it - ticket 019, where an apt-get did exactly that to three
+      # lint jobs in one evening. Caching it would mean actions/cache, which is
+      # Node; revisit once the pure-shell cache actions land (ticket 026).
+      - name: Install actionlint
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          curl -sSfL -o download-actionlint.bash \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
+          bash download-actionlint.bash 1.7.12 .
+          rm -f download-actionlint.bash
+
+      - name: actionlint
+        run: ./actionlint -color
+
+      # ShellCheck and yq both ship on the runner image, so neither step below
+      # installs anything. This one dogfoods the repository's own shell-lint
+      # against the extractor script - `uses: ./` is the working tree, not the
+      # last release, which is the point of testing an action in its own repo.
+      - name: ShellCheck scripts
+        uses: ./shell-lint
+        with:
+          paths: "scripts/*.sh"
+
+      - name: ShellCheck composite action steps
+        run: ./scripts/lint-composite-shell.sh
